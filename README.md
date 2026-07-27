@@ -46,9 +46,9 @@
 
 ## CheckCC 问题反馈群
 
-<p align="center">
-  <img src="https://cdn.ddkk.com/images/weixin/checkcc/weixin.png" alt="CheckCC 问题反馈群" width="220" />
-</p>
+| 1 群 | 2 群 |
+| :---: | :---: |
+| <img src="https://cdn.ddkk.com/images/weixin/checkcc/weixin.png" alt="CheckCC 问题反馈 1 群" width="220" /> | <img src="https://cdn.ddkk.com/images/weixin/checkcc/weixin2.png" alt="CheckCC 问题反馈 2 群" width="220" /> |
 
 ## 项目说明
 

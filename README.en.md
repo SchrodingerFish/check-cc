@@ -43,9 +43,11 @@ Development resources and AI token usage for this project are sponsored by ÂÖ®Áê
 | --- | --- |
 | <img src="./docs/images/en/checkcc-detection-principles.png?v=070801" alt="CheckCC detection principles" width="430" /> | <img src="./docs/images/en/checkcc-supported-regions.png?v=070801" alt="CheckCC supported regions" width="430" /> |
 
-<p align="center">
-  <img src="https://cdn.ddkk.com/images/weixin/checkcc/checkcc.png" alt="CheckCC WeChat group QR code" width="220" />
-</p>
+## CheckCC WeChat Feedback Groups
+
+| Group 1 | Group 2 |
+| :---: | :---: |
+| <img src="https://cdn.ddkk.com/images/weixin/checkcc/weixin.png" alt="CheckCC WeChat feedback group 1" width="220" /> | <img src="https://cdn.ddkk.com/images/weixin/checkcc/weixin2.png" alt="CheckCC WeChat feedback group 2" width="220" /> |
 
 ## Overview
 
