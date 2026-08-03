@@ -45,9 +45,9 @@ Development resources and AI token usage for this project are sponsored by ÂÖ®Áê
 
 ## CheckCC WeChat Feedback Groups
 
-| Group 1 | Group 2 |
-| :---: | :---: |
-| <img src="https://cdn.ddkk.com/images/weixin/checkcc/083101.png" alt="CheckCC WeChat feedback group 1" width="220" /> | <img src="https://cdn.ddkk.com/images/weixin/checkcc/083102.png" alt="CheckCC WeChat feedback group 2" width="220" /> |
+| Group 2 |
+| :---: |
+| <img src="https://cdn.ddkk.com/images/weixin/checkcc/081002.png" alt="CheckCC WeChat feedback group 2" width="220" /> |
 
 ## Overview
 
