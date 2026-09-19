@@ -5,7 +5,19 @@ import type { DetectorLocaleText, TargetRegion } from "./locale";
 import type { RegionCode, SignalResult } from "./types";
 
 export type SignalView = SignalResult & { state?: "pending" | "running" | "done" };
-export type BrowserIpIntel = { ip: string; location: string; country: string; asn: string; org: string };
+export type BrowserIpIntel = {
+  ip: string;
+  location: string;
+  country: string;
+  asn: string;
+  org: string;
+  city?: string;
+  isp?: string;
+  latitude?: number | null;
+  longitude?: number | null;
+  networkType?: string;
+  risk?: string | null;
+};
 export type BrowserEnvironmentSnapshot = {
   languages: string[];
   timezone: string | null;
@@ -58,7 +70,7 @@ function hasFont(font: string) {
   return ["monospace", "sans-serif", "serif"].some((base) => {
     ctx.font = `72px ${base}`;
     const baseWidth = ctx.measureText(text).width;
-    ctx.font = `72px \"${font}\", ${base}`;
+    ctx.font = `72px "${font}", ${base}`;
     return Math.abs(ctx.measureText(text).width - baseWidth) > 0.5;
   });
 }
@@ -149,6 +161,9 @@ export function collectBrowserSignals(region: RegionCode, text: DetectorLocaleTe
     makeSignalScore("domesticDevice", label.domesticDevice, domesticDevice || value.noDevice, 6, deviceScore, text, config),
     makeSignal("device", label.device, detectDeviceName(ua, platform, text), 0, false, text, config),
     makeSignal("os", label.os, detectOS(ua, platform, text), 0, false, text, config),
+    makeSignal("requestHeaderIntegrity", label.requestHeaderIntegrity, "标准浏览器环境", 0, false, text, config),
+    makeSignalScore("acceptLanguageHeader", label.acceptLanguageHeader, languages.join(", "), 4, languageScore, text, config),
+    makeSignal("secFetchProfile", label.secFetchProfile, "支持 Sec-Fetch 策略", 0, false, text, config),
     makeSignalScore("locale", label.locale, locale, 6, localeScore, text, config),
     makeSignalScore("timezoneOffset", label.timezoneOffset, `UTC${offset >= 0 ? "+" : ""}${offset}`, 4, offset === 8 ? 0.7 : 0, text, config),
     makeSignalScore("emojiStyle", label.emojiStyle, emojiStyle, 4, emojiScore, text, config),
@@ -164,13 +179,98 @@ export function isPublicIp(ip: string) {
   return !(a === 10 || a === 127 || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168) || (a === 169 && b === 254) || a === 0);
 }
 
-export function signalsScore(browserSignals: SignalResult[], serverSignals: SignalResult[], config: DetectionConfig = detectionConfig) {
-  const scoreMap = new Map<string, number>();
-  for (const signal of browserSignals) {
-    if (signal.contribution > 0) scoreMap.set(signal.id, signal.contribution);
+const SCORING_BUCKETS = {
+  region: {
+    cap: 35,
+    ids: new Set([
+      "timezone",
+      "language",
+      "languageVariant",
+      "chineseFonts",
+      "vendorFonts",
+      "domesticBrowser",
+      "domesticDevice",
+      "locale",
+      "timezoneOffset",
+      "emojiStyle",
+      "acceptLanguageHeader",
+    ]),
+  },
+  network: {
+    cap: 35,
+    ids: new Set(["country", "edgeCountry", "networkExitType", "ipIntelConsistency", "ipCountryRisk", "ipCountrySet"]),
+  },
+  dns: {
+    cap: 12,
+    ids: new Set(["dnsExitRegionRisk", "dnsProxyConsistencyHint"]),
+  },
+  webrtc: {
+    cap: 25,
+    ids: new Set(["webrtcPublicIpLeak", "webrtcLeakRegionRisk", "webrtcHttpExitMismatch"]),
+  },
+  claudeReachability: {
+    cap: 18,
+    ids: new Set([
+      "claudeAiReachability",
+      "anthropicSiteReachability",
+      "anthropicApiReachability",
+      "claudeServiceStatus",
+      "claudeLatencyLevel",
+      "claudeAccessRisk",
+    ]),
+  },
+};
+
+export function signalsScore(browserSignals: SignalResult[], serverSignals: SignalResult[] = [], config: DetectionConfig = detectionConfig) {
+  const signalMap = new Map<string, SignalResult>();
+  for (const signal of [...browserSignals, ...serverSignals]) {
+    if (signal && signal.contribution > 0) {
+      signalMap.set(signal.id, signal);
+    }
   }
-  for (const signal of serverSignals) {
-    if (signal.id === "country" && signal.contribution > 0) scoreMap.set("country", getSignalWeight("country", 20, config));
+
+  const buckets: Record<keyof typeof SCORING_BUCKETS, number> = {
+    region: 0,
+    network: 0,
+    dns: 0,
+    webrtc: 0,
+    claudeReachability: 0,
+  };
+  let highRiskFloor = 0;
+
+  for (const sig of signalMap.values()) {
+    for (const [category, meta] of Object.entries(SCORING_BUCKETS)) {
+      if (meta.ids.has(sig.id)) {
+        buckets[category as keyof typeof SCORING_BUCKETS] += sig.contribution;
+        break;
+      }
+    }
+
+    // 关键高危信号触发保底风险分
+    if (sig.id === "ipCountryRisk" && sig.contribution > 0) {
+      highRiskFloor = Math.max(highRiskFloor, String(sig.value).includes("香港") ? 58 : 78);
+    }
+    if (sig.id === "country" && sig.contribution > 0) {
+      const val = String(sig.value);
+      if (/china|中国|russia|iran/i.test(val)) {
+        highRiskFloor = Math.max(highRiskFloor, 78);
+      } else if (/hong\s*kong|香港/i.test(val)) {
+        highRiskFloor = Math.max(highRiskFloor, 58);
+      }
+    }
+    if (sig.id === "webrtcLeakRegionRisk" && sig.contribution > 0) {
+      highRiskFloor = Math.max(highRiskFloor, 76);
+    }
+    if (sig.id === "claudeServiceStatus" && sig.score >= 1) {
+      highRiskFloor = Math.max(highRiskFloor, 62);
+    }
   }
-  return Array.from(scoreMap.values()).reduce((sum, value) => sum + value, 0);
+
+  let cappedSum = 0;
+  for (const [cat, sum] of Object.entries(buckets)) {
+    cappedSum += Math.min(SCORING_BUCKETS[cat as keyof typeof SCORING_BUCKETS].cap, sum);
+  }
+
+  return Math.min(97, Math.max(cappedSum, highRiskFloor));
 }
+

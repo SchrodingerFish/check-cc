@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  metadataBase: new URL("https://checkcc.org"),
+  metadataBase: process.env.NEXT_PUBLIC_SITE_URL ? new URL(process.env.NEXT_PUBLIC_SITE_URL) : undefined,
   title: {
     default: "检查 Claude 封号风险",
     template: "%s｜CheckCC",
@@ -20,7 +20,7 @@ export const metadata: Metadata = {
   },
   openGraph: {
     type: "website",
-    url: "https://checkcc.org",
+    url: "/",
     siteName: "CheckCC",
     title: "检查 Claude 封号风险",
     description: "独家 AI 环境指纹引擎，综合扫描 Claude 运行环境、地区画像与账号风险",

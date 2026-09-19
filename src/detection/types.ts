@@ -62,8 +62,8 @@ export type IpIntelligence = {
 };
 
 export type CheckResponse = {
-  app: "Check Claude";
-  domain: "checkcc.org";
+  app?: string;
+  domain?: string;
   region: RegionCode;
   matchedRegion: Exclude<RegionCode, "auto"> | null;
   detectedCountry: string | null;

@@ -12,24 +12,13 @@ export const metadata: Metadata = {
 
 const pageMax = "mx-auto w-full max-w-[1440px] px-5 md:px-8 2xl:max-w-[1536px] min-[1800px]:max-w-[1760px] min-[1920px]:max-w-[1920px] min-[2400px]:max-w-[2200px]";
 
-const faqLinks = [
-  "https://checkcc.org/claude-feng-hao",
-  "https://checkcc.org/claude-feng-hao-yuan-yin",
-  "https://checkcc.org/claude-feng-hao-ji-zhi",
-  "https://checkcc.org/claude-feng-hao-jie-feng",
-  "https://checkcc.org/claude-feng-hao-tui-kuan",
-  "https://checkcc.org/claude-shen-qing",
-  "https://checkcc.org/claude-api-shen-qing",
-  "https://checkcc.org/claude-code-shen-qing",
-];
-
 const jsonLd = {
   "@context": "https://schema.org",
   "@graph": [
     {
       "@type": "WebApplication",
       name: "Check Claude",
-      url: "https://checkcc.org/",
+      url: "/",
       applicationCategory: "SecurityApplication",
       operatingSystem: "All",
       inLanguage: "zh-CN",
@@ -65,15 +54,6 @@ export function HomeContent({ locale = "zh" }: { locale?: LocaleCode }) {
           <p className="mx-auto mt-7 max-w-[1320px] text-xl font-bold leading-8 text-stone-700 md:text-2xl 2xl:max-w-[1440px] min-[1800px]:max-w-[1600px]">
             {copy.hero.subtitle}
           </p>
-          <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
-            <a href="https://checkcc.org" target="_blank" rel="noreferrer" className="rounded-full bg-[#0b1220] px-7 py-3 text-base font-black text-white shadow-xl shadow-slate-950/15 transition hover:bg-[#d97757]">
-              Live Demo: checkcc.org
-            </a>
-            <a href="https://checkcc.org" target="_blank" rel="noreferrer" className="rounded-full border border-stone-300 bg-white/80 px-7 py-3 text-base font-black text-[#0b1220] transition hover:border-[#d97757] hover:text-[#d97757]">
-              Official Site
-            </a>
-          </div>
-
         </div>
       </section>
 
@@ -101,14 +81,6 @@ export function HomeContent({ locale = "zh" }: { locale?: LocaleCode }) {
             </div>
           </div>
         </article>
-      </section>
-
-      <section className={`${pageMax} mt-16`}>
-        <a href="https://checkcc.org" target="_blank" rel="noreferrer" className="block rounded-[2rem] border border-[#d97757]/30 bg-[#fff4eb] p-6 text-center shadow-sm transition hover:-translate-y-0.5 hover:shadow-xl md:p-8">
-          <div className="text-sm font-black uppercase tracking-[0.24em] text-[#d97757]">Official Website</div>
-          <div className="mt-3 text-2xl font-black text-[#0b1220] md:text-4xl">Use the hosted version at checkcc.org</div>
-          <p className="mt-4 text-base font-semibold leading-7 text-stone-600">Open-source self-hosting is available. The official hosted version is maintained at checkcc.org.</p>
-        </a>
       </section>
 
       <section id="seo-content" className={`${pageMax} mt-20`}>
@@ -170,11 +142,11 @@ export function HomeContent({ locale = "zh" }: { locale?: LocaleCode }) {
       <section id="faq" className={`${pageMax} mt-20`}>
         <h2 className="text-center text-3xl font-black md:text-5xl">{copy.faq.title}</h2>
         <div className="mt-10 grid gap-4 lg:grid-cols-2">
-          {copy.faq.items.map(([question, answer], index) => (
-            <a key={question} href={faqLinks[index] ?? "https://checkcc.org"} target="_blank" rel="noreferrer" className="rounded-[2rem] border border-stone-200 bg-white/80 p-6 transition hover:-translate-y-0.5 hover:border-[#d97757]/40 hover:bg-orange-50 hover:shadow-xl hover:shadow-stone-900/10">
-              <h3 className="text-lg font-black">{question}</h3>
+          {copy.faq.items.map(([question, answer]) => (
+            <article key={question} className="rounded-[2rem] border border-stone-200 bg-white/80 p-6 shadow-sm transition hover:border-[#d97757]/40 hover:bg-orange-50/40 hover:shadow-md">
+              <h3 className="text-lg font-black text-[#0b1220]">{question}</h3>
               <p className="mt-3 leading-7 text-stone-600">{answer}</p>
-            </a>
+            </article>
           ))}
         </div>
       </section>

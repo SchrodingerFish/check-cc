@@ -6,6 +6,7 @@ import { createPortal } from "react-dom";
 import type { CheckResponse, SignalResult } from "@/detection/types";
 import {
   animateProgress,
+  collectBrowserSignals,
   defaultSignals,
   isPublicIp,
   localizeSignalValue,
@@ -20,6 +21,9 @@ import {
 import { detectorLocaleText, localizeLocation, type DetectorLocaleText, type TargetRegion } from "@/detection/locale";
 import { detectionConfig } from "@/detection/config";
 import { runDetection, type DetectionRunResult } from "@/detection/runner";
+import { detectClaudeReachability } from "@/detection/plugins/claude-reachability";
+import { detectNetworkIntel } from "@/detection/plugins/network-intel";
+import { detectWebRtcLeak } from "@/detection/plugins/webrtc";
 import { messages, type LocaleCode } from "@/i18n/messages";
 
 type Props = { lang?: "zh" | "en"; locale?: LocaleCode };
@@ -109,8 +113,15 @@ export function Detector({ locale = "zh" }: Props) {
     for (const signal of browserResult?.signals ?? []) map.set(signal.id, signal);
     for (const signal of serverResult?.signals ?? []) {
       if (signal.value && signal.value !== detectorLocaleText.zh.unknown) {
-        if (signal.id === "country") map.set("country", { ...signal, label: detectorText.signalLabels.country, value: localizeSignalValue(signal.value, detectorText) });
-        else map.set(`server-${signal.id}`, { ...signal, label: detectorText.signalLabels[signal.id] ?? signal.label, value: signal.value === detectorLocaleText.zh.signalValues.read ? detectorText.signalValues.read : localizeSignalValue(signal.value, detectorText) });
+        if (signal.id === "country") {
+          map.set("country", { ...signal, label: detectorText.signalLabels.country, value: localizeSignalValue(signal.value, detectorText) });
+        } else {
+          map.set(signal.id, {
+            ...signal,
+            label: detectorText.signalLabels[signal.id] ?? signal.label,
+            value: signal.value === detectorLocaleText.zh.signalValues.read ? detectorText.signalValues.read : localizeSignalValue(signal.value, detectorText),
+          });
+        }
       }
     }
     const detectedCountry = serverResult?.ipIntelligence?.detectedCountry || browserIpIntel?.country;
@@ -145,40 +156,76 @@ export function Detector({ locale = "zh" }: Props) {
     setProgress(0);
     setActiveSignal(0);
 
-    let local: DetectionRunResult["browserResult"] | null = null;
-    let remote: CheckResponse | null = null;
-
     const checkRegion = normalizeRegion(region);
 
-    for (let index = 0; index < scanSteps.length; index += 1) {
-      const from = Math.round((index / scanSteps.length) * 92);
-      const to = Math.round(((index + 1) / scanSteps.length) * 92);
+    // 阶段 1: 浏览器基础指纹与环境采集 (0% -> 22%)
+    const local = collectBrowserSignals(checkRegion, detectorText, detectionConfig);
+    setBrowserResult(local);
+    await animateProgress(0, 22, setProgress, setActiveSignal);
 
-      if (index === 0 || index === 1 || index === 4) {
-        const result = await runDetection({ region: checkRegion, locale, text: detectorText, config: detectionConfig });
-        local = result.browserResult;
-        setBrowserResult(local);
+    // 阶段 2: 多源网络情报与出口特征 (22% -> 50%)
+    let accumulatedServerSignals: SignalResult[] = [];
+    let detectedCountry: string | null = null;
+
+    try {
+      const { data: netData, signals: netSignals } = await detectNetworkIntel(detectorText, detectionConfig);
+      detectedCountry = netData.country;
+      accumulatedServerSignals = [...netSignals];
+
+      if (netData.ip) {
+        setBrowserIpIntel({
+          ip: netData.ip,
+          location: netData.location || netData.country || "",
+          country: netData.country || "",
+          city: netData.city || undefined,
+          asn: netData.asn || "",
+          org: netData.org || "",
+          isp: netData.isp || undefined,
+          latitude: netData.latitude,
+          longitude: netData.longitude,
+          networkType: netData.networkType || undefined,
+          risk: netData.isDatacenter ? (locale === "zh" ? "高风险 / 代理出口" : "High Risk / Proxy") : (locale === "zh" ? "低风险 / 原生" : "Low Risk / Native"),
+        });
       }
 
-      if (index === 2) {
-        remote = null;
-        setServerResult(null);
-        setBrowserIpIntel(null);
-      }
-
-      await animateProgress(from, to, setProgress, setActiveSignal);
-      await sleep(45);
+      setServerResult({
+        region: checkRegion,
+        matchedRegion: netData.country && /china|中国/i.test(netData.country) ? "cn" : netData.country && /russia|俄罗斯/i.test(netData.country) ? "ru" : null,
+        detectedCountry: netData.country,
+        detectedTimezone: Intl.DateTimeFormat().resolvedOptions().timeZone || null,
+        score: 0,
+        status: "unknown",
+        products: { web: "unknown", pro: "unknown", api: "unknown", payment: "unknown" },
+        signals: accumulatedServerSignals,
+        recommendations: [],
+        disclaimer: "",
+      });
+    } catch {
+      // 保持容错
     }
+    await animateProgress(22, 50, setProgress, setActiveSignal);
 
-    if (!local) {
-      const result = await runDetection({ region: checkRegion, locale, text: detectorText, config: detectionConfig });
-      setBrowserResult(result.browserResult);
+    // 阶段 3: Claude / Anthropic 节点连通性主动探测 (50% -> 74%)
+    try {
+      const { signals: claudeSignals } = await detectClaudeReachability(detectorText, detectionConfig);
+      accumulatedServerSignals = [...accumulatedServerSignals, ...claudeSignals];
+      setServerResult((prev) => prev ? { ...prev, signals: accumulatedServerSignals } : null);
+    } catch {
+      // 保持容错
     }
-    if (!remote) {
-      setServerResult(null);
-      if (!browserIpIntel) setBrowserIpIntel(null);
-    }
+    await animateProgress(50, 74, setProgress, setActiveSignal);
 
+    // 阶段 4: WebRTC 真实 IP 泄漏探测 (74% -> 92%)
+    try {
+      const { signals: webrtcSignals } = await detectWebRtcLeak(detectedCountry, detectorText, detectionConfig);
+      accumulatedServerSignals = [...accumulatedServerSignals, ...webrtcSignals];
+      setServerResult((prev) => prev ? { ...prev, signals: accumulatedServerSignals } : null);
+    } catch {
+      // 保持容错
+    }
+    await animateProgress(74, 92, setProgress, setActiveSignal);
+
+    // 阶段 5: 聚合评分与完成 (92% -> 100%)
     await animateProgress(92, 100, setProgress, setActiveSignal);
     setActiveSignal(defaultSignals.length);
     setLoading(false);
@@ -196,14 +243,14 @@ export function Detector({ locale = "zh" }: Props) {
     ip: browserIpIntel.ip,
     country: browserIpIntel.country,
     region: browserIpIntel.location,
-    city: browserIpIntel.location,
+    city: browserIpIntel.city || browserIpIntel.location,
     asn: browserIpIntel.asn,
-    isp: browserIpIntel.org,
+    isp: browserIpIntel.isp || browserIpIntel.org,
     org: browserIpIntel.org,
-    latitude: null,
-    longitude: null,
-    networkType: browserIpIntel.ip.includes(":") ? "IPv6" : "IPv4",
-    risk: null,
+    latitude: browserIpIntel.latitude ?? null,
+    longitude: browserIpIntel.longitude ?? null,
+    networkType: browserIpIntel.networkType || (browserIpIntel.ip.includes(":") ? "IPv6" : "IPv4"),
+    risk: browserIpIntel.risk ?? null,
   } : null;
   const displayIpSource = primaryIpSource ?? browserIpSource;
   const ipSourceAddresses = [

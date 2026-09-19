@@ -11,7 +11,14 @@ export type DetectionRunResult = {
 };
 
 function enabledPlugins(config: DetectionConfig) {
-  return detectionPlugins.filter((plugin) => plugin.id === "browser-environment" || config.signals[plugin.id]?.enabled !== false);
+  return detectionPlugins.filter(
+    (plugin) =>
+      plugin.id === "browser-environment" ||
+      plugin.id === "webrtc" ||
+      plugin.id === "claudeReachability" ||
+      plugin.id === "networkIntel" ||
+      config.signals[plugin.id]?.enabled !== false
+  );
 }
 
 function uniqueSignals(signals: SignalResult[]) {
